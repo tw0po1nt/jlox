@@ -76,6 +76,8 @@ class Scanner {
                 if (match('/')) {
                     // A comment goes until the end of the line
                     while (peek() != '\n' && !isAtEnd()) advance();
+                } else if (match('*')) {
+                    multilineComment(false);
                 } else {
                     addToken(TokenType.SLASH);
                 }
@@ -99,6 +101,41 @@ class Scanner {
                 }
                 break;
         }
+    }
+
+    private boolean multilineComment(boolean isNested) {
+        boolean nestedCommentTerminates = false;
+        while (!isAtEnd()) {
+            if (peek() == '\n') line++;
+            if (peek() == '*' && peekNext() == '/') break;
+            if (peek() == '/' && peekNext() == '*') {
+                // Consume the characters beginning the nested comment
+                advance();
+                advance();
+                nestedCommentTerminates = multilineComment(true);
+                continue;
+            };
+            
+            advance();
+        }
+
+        if ((isAtEnd() || peekNext() == '\0')) {
+            if (nestedCommentTerminates) {
+                // The ending */ of a nested comment serves to terminate its parent, even if the parent doesn't terminate itself
+                return true;
+            } else {
+                if (!isNested) {
+                    // Don't report unterminated nested comments - one error report for the root is sufficient
+                    Lox.error(line, "Unterminated comment.");
+                }
+                return false;
+            }
+        }
+
+        // The closing */
+        advance();
+        advance();
+        return true;
     }
 
     private void identifier() {
@@ -191,3 +228,4 @@ class Scanner {
         tokens.add(new Token(type, text, literal, line));
     }
 }
+

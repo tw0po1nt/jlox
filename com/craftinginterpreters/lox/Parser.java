@@ -23,7 +23,18 @@ class Parser {
     // Grammer processing functions
 
     private Expr expression() {
-        return equality();
+        return comma();
+    }
+
+    private Expr comma() {
+        Expr expr = equality();
+        while (match(TokenType.COMMA)) {
+            Token operator = previous();
+            Expr right = equality();
+            expr = right;
+        }
+
+        return expr;
     }
 
     private Expr equality() {

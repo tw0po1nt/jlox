@@ -27,11 +27,28 @@ class Parser {
     }
 
     private Expr comma() {
-        Expr expr = equality();
+        Expr expr = ternary();
         while (match(TokenType.COMMA)) {
             Token operator = previous();
-            Expr right = equality();
+            Expr right = ternary();
             expr = right;
+        }
+
+        return expr;
+    }
+
+    private Expr ternary() {
+        Expr expr = equality();
+
+        while (match(TokenType.QUESTION)) {
+            Token question = previous();
+            Expr left = equality();
+            if (match(TokenType.COLON)) {
+                Expr right = equality();
+                expr = new Expr.Ternary(expr, new Token(TokenType.QUESTION_COMMA, "?:", null, question.line), left, right);
+            } else {
+                throw error(peek(), "Expect ':'");
+            }
         }
 
         return expr;

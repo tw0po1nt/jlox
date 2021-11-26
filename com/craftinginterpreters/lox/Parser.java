@@ -6,6 +6,8 @@ import java.util.List;
 class Parser {
     private static class ParseError extends RuntimeException {};
 
+    private boolean allowExpression;
+    private boolean foundExpression = false;
     private final List<Token> tokens;
     private int current = 0;
 
@@ -20,6 +22,23 @@ class Parser {
         }
 
         return statements;
+    }
+
+    Object parseRepl() {
+      allowExpression = true;
+      List<Stmt> statements = new ArrayList<>();
+      while (!isAtEnd()) {
+        statements.add(declaration());
+
+        if (foundExpression) {
+          Stmt last = statements.get(statements.size() - 1);
+          return ((Stmt.Expression) last).expression;
+        }
+
+        allowExpression = false;
+      }
+
+      return statements;
     }
 
     // Grammer processing functions
@@ -83,7 +102,13 @@ class Parser {
 
     private Stmt expressionStatement() {
         Expr value = expression();
-        consume(TokenType.SEMICOLON, "Expect ';' after expression.");
+        
+        if (allowExpression && isAtEnd()) {
+            foundExpression = true;
+        } else {
+            consume(TokenType.SEMICOLON, "Expect ';' after expression.");
+        }
+
         return new Stmt.Expression(value);
     }
 

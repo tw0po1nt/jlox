@@ -9,6 +9,7 @@ class Parser {
 
     private final List<Token> tokens;
     private int current = 0;
+    private int loopDepth = 0;
 
     Parser(List<Token> tokens) {
         this.tokens = tokens;
@@ -85,6 +86,7 @@ class Parser {
         if (match(TokenType.FOR)) return forStatement();
         if (match(TokenType.IF)) return ifStatement();
         if (match(TokenType.PRINT)) return printStatement();
+        if (match(TokenType.BREAK)) return breakStatement();
         if (match(TokenType.WHILE)) return whileStatement();
         if (match(TokenType.LEFT_BRACE)) return new Stmt.Block(block());
 
@@ -118,26 +120,30 @@ class Parser {
 
         consume(TokenType.RIGHT_PAREN, "Expect ')' after for clauses.");
 
-        Stmt body = statement();
+        try {
+            loopDepth++;
+            Stmt body = statement();
+            // Implement `for` construct as a `while`
+            if (increment != null) {
+                body = new Stmt.Block(
+                    Arrays.asList(
+                        body,
+                        new Stmt.Expression(increment)
+                    )
+                );
+            }
 
-        // Implement `for` construct as a `while`
-        if (increment != null) {
-            body = new Stmt.Block(
-                Arrays.asList(
-                    body,
-                    new Stmt.Expression(increment)
-                )
-            );
+            if (condition == null) condition = new Expr.Literal(true);
+            body = new Stmt.While(condition, body);
+
+            if (initializer != null) {
+                body = new Stmt.Block(Arrays.asList(initializer, body));
+            }
+
+            return body;
+        } finally {
+            loopDepth--;
         }
-
-        if (condition == null) condition = new Expr.Literal(true);
-        body = new Stmt.While(condition, body);
-
-        if (initializer != null) {
-            body = new Stmt.Block(Arrays.asList(initializer, body));
-        }
-
-        return body;
     }
 
     private Stmt ifStatement() {
@@ -152,6 +158,14 @@ class Parser {
         }
 
         return new Stmt.If(condition, thenBranch, elseBranch);
+    }
+
+    private Stmt breakStatement() {
+        if (loopDepth == 0) {
+            error(previous(), "Must be inside a loop to use 'break'.");
+        }
+        consume(TokenType.SEMICOLON, "Expect ';' after break.");
+        return new Stmt.Break();
     }
 
     private Stmt printStatement() {
@@ -176,9 +190,14 @@ class Parser {
         consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.");
         Expr condition = expression();
         consume(TokenType.RIGHT_PAREN, "Expect ')' after condition.");
-        Stmt body = statement();
 
-        return new Stmt.While(condition, body);
+        try {
+            loopDepth++;
+            Stmt body = statement();
+            return new Stmt.While(condition, body);
+        } finally {
+            loopDepth--;
+        }
     }
 
     private Stmt expressionStatement() {

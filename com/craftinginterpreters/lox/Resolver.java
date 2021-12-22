@@ -8,6 +8,7 @@ import java.util.Stack;
 class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private final Interpreter interpreter;
     private final Stack<Map<String, Boolean>> scopes = new Stack<>();
+    private final Stack<Map<Token, Boolean>> usages = new Stack<>();
     private FunctionType currentFunction = FunctionType.NONE;
 
     Resolver(Interpreter interpreter) {
@@ -180,10 +181,19 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
 
     private void beginScope() {
         scopes.push(new HashMap<String, Boolean>());
+        usages.push(new HashMap<Token, Boolean>());
     }
 
     private void endScope() {
+        Map<Token, Boolean> usage = usages.peek();
+        for (Map.Entry<Token, Boolean> entry : usage.entrySet()) {
+            if (entry.getValue() == Boolean.FALSE) {
+                Lox.error(entry.getKey(), "Unused variable in scope.");
+            }
+        }
+
         scopes.pop();
+        usages.pop();
     }
 
     private void declare(Token name) {
@@ -199,11 +209,13 @@ class Resolver implements Expr.Visitor<Void>, Stmt.Visitor<Void> {
     private void define(Token name) {
         if (scopes.isEmpty()) return;
         scopes.peek().put(name.lexeme, true);
+        usages.peek().put(name, false);
     }
 
     private void resolveLocal(Expr expr, Token name) {
         for (int i = scopes.size() - 1; i >= 0; i--) {
             if (scopes.get(i).containsKey(name.lexeme)) {
+                usages.get(i).put(name, true);
                 interpreter.resolve(expr, scopes.size() - 1 - i);
                 return;
             }

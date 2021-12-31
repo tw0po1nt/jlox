@@ -199,7 +199,13 @@ class Parser {
             if (match(TokenType.CLASS)) {
                 classFunctions.add(function("class function"));
             } else {
-                methods.add(function("method"));
+                if (peek().type == TokenType.IDENTIFIER && peekNext().type == TokenType.LEFT_PAREN) {
+                    methods.add(function("method"));
+                } else if (peek().type == TokenType.IDENTIFIER && peekNext().type == TokenType.LEFT_BRACE) {
+                    methods.add(function("getter"));
+                } else {
+                    throw error(peek(), "Expect method or getter.");
+                }
             }
         }
 
@@ -224,23 +230,25 @@ class Parser {
 
     private Stmt.Function function(String kind) {
         Token name = consume(TokenType.IDENTIFIER, "Expect " + kind + " name.");
-        consume(TokenType.LEFT_PAREN, "Expect '(' after " + kind + " name.");
         List<Token> parameters = new ArrayList<>();
-        if (!check(TokenType.RIGHT_PAREN)) {
-            do {
-                if (parameters.size() >= 255) {
-                    error(peek(), "Can't have more than 255 parameters.");
-                }
+        if (!kind.equals("getter")) {
+            consume(TokenType.LEFT_PAREN, "Expect '(' after " + kind + " name.");
+            if (!check(TokenType.RIGHT_PAREN)) {
+                do {
+                    if (parameters.size() >= 255) {
+                        error(peek(), "Can't have more than 255 parameters.");
+                    }
 
-                parameters.add(consume(TokenType.IDENTIFIER, "Expect parameter name."));
-            } while (match(TokenType.COMMA));
+                    parameters.add(consume(TokenType.IDENTIFIER, "Expect parameter name."));
+                } while (match(TokenType.COMMA));
+            }
+
+            consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.");
         }
-
-        consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.");
-
+        
         consume(TokenType.LEFT_BRACE, "Expect '{' before " + kind + " body.");
         List<Stmt> body = block();
-        return new Stmt.Function(name, parameters, body);
+        return new Stmt.Function(name, parameters, body, kind.equals("getter"));
     }
 
     private List<Stmt> block() {
@@ -400,6 +408,14 @@ class Parser {
 
     private Token peek() {
         return tokens.get(current);
+    }
+
+    private Token peekNext() {
+        if (!isAtEnd()) {
+            return tokens.get(current + 1);
+        }
+
+        return null;
     }
 
     private Token previous() {
